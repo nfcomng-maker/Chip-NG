@@ -85,6 +85,8 @@ db.exec(`
     display_name TEXT,
     bio TEXT,
     avatar_url TEXT,
+    bg_image_url TEXT,
+    font_family TEXT DEFAULT 'sans',
     theme TEXT DEFAULT 'default',
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
@@ -107,6 +109,8 @@ db.exec(`
 try { db.exec("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'active'"); } catch (e) {}
 try { db.exec("ALTER TABLE users ADD COLUMN next_billing_date TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN avatar_url TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN bg_image_url TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN font_family TEXT DEFAULT 'sans'"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN theme TEXT DEFAULT 'default'"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN icon TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN position INTEGER DEFAULT 0"); } catch (e) {}
@@ -233,12 +237,12 @@ async function startServer() {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { display_name, bio, avatar_url, theme } = req.body;
+    const { display_name, bio, avatar_url, theme, font_family, bg_image_url } = req.body;
     db.prepare(`
       UPDATE profiles 
-      SET display_name = ?, bio = ?, avatar_url = ?, theme = ? 
+      SET display_name = ?, bio = ?, avatar_url = ?, theme = ?, font_family = ?, bg_image_url = ? 
       WHERE user_id = ?
-    `).run(display_name, bio, avatar_url, theme, userId);
+    `).run(display_name, bio, avatar_url, theme, font_family, bg_image_url, userId);
     res.json({ success: true });
   });
 
@@ -254,6 +258,20 @@ async function startServer() {
     db.prepare("UPDATE profiles SET avatar_url = ? WHERE user_id = ?").run(avatarUrl, userId);
     
     res.json({ success: true, avatarUrl });
+  });
+
+  app.post("/api/profile/background", upload.single("background"), (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const bgImageUrl = `/uploads/${req.file.filename}`;
+    db.prepare("UPDATE profiles SET bg_image_url = ? WHERE user_id = ?").run(bgImageUrl, userId);
+    
+    res.json({ success: true, bgImageUrl });
   });
 
   app.get("/api/links", (req, res) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Profile, Link as LinkType, THEMES } from "../types";
+import { Profile, Link as LinkType, THEMES, FONTS } from "../types";
 import { IconRenderer } from "../components/IconPicker";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -54,10 +54,21 @@ export default function ProfileView() {
   );
 
   const theme = THEMES.find(t => t.id === profile.theme) || THEMES[0];
+  const font = FONTS.find(f => f.id === profile.font_family) || FONTS[0];
 
   return (
-    <div className={cn("min-h-screen flex flex-col items-center py-16 px-6", theme.bg)}>
-      <div className="max-w-xl w-full flex flex-col items-center gap-12">
+    <div 
+      className={cn("min-h-screen flex flex-col items-center py-16 px-6 relative", theme.bg, font.family)}
+      style={profile.bg_image_url ? {
+        backgroundImage: `url(${profile.bg_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      } : {}}
+    >
+      {profile.bg_image_url && <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />}
+
+      <div className="max-w-xl w-full flex flex-col items-center gap-12 relative z-10">
         {/* Profile Header */}
         <div className="flex flex-col items-center gap-6 text-center">
           <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl">
@@ -70,11 +81,11 @@ export default function ProfileView() {
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <h1 className={cn("text-2xl font-extrabold tracking-tight", theme.text)}>
+            <h1 className={cn("text-2xl font-extrabold tracking-tight", theme.text, profile.bg_image_url && "text-white drop-shadow-lg")}>
               {profile.display_name || `@${profile.username}`}
             </h1>
             {profile.bio && (
-              <p className={cn("text-lg font-medium opacity-80 max-w-md", theme.text)}>
+              <p className={cn("text-lg font-medium opacity-80 max-w-md", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>
                 {profile.bio}
               </p>
             )}
@@ -87,14 +98,15 @@ export default function ProfileView() {
               key={link.id}
               onClick={() => handleLinkClick(link.id, link.url)}
               style={{ 
-                color: link.color || (theme.id === 'dark' ? '#fafafa' : '#18181b'),
-                borderColor: link.color ? `${link.color}40` : undefined,
-                backgroundColor: link.color ? `${link.color}08` : undefined
+                color: link.color || (profile.bg_image_url ? '#ffffff' : (theme.id === 'dark' ? '#fafafa' : '#18181b')),
+                borderColor: link.color ? `${link.color}40` : (profile.bg_image_url ? 'rgba(255,255,255,0.3)' : undefined),
+                backgroundColor: link.color ? `${link.color}08` : (profile.bg_image_url ? 'rgba(255,255,255,0.1)' : undefined),
+                backdropFilter: profile.bg_image_url ? 'blur(8px)' : undefined
               }}
               className={cn(
                 "w-full py-5 px-8 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-lg hover:shadow-xl flex items-center justify-between group gap-4 border",
-                !link.color && theme.button,
-                !link.color && theme.buttonText
+                !link.color && !profile.bg_image_url && theme.button,
+                !link.color && !profile.bg_image_url && theme.buttonText
               )}
             >
               <div className="w-6 h-6 flex items-center justify-center shrink-0">
@@ -114,7 +126,8 @@ export default function ProfileView() {
             href="/" 
             className={cn(
               "flex items-center gap-2 px-4 py-2 rounded-full border border-current opacity-40 hover:opacity-100 transition-opacity text-xs font-bold uppercase tracking-widest",
-              theme.text
+              theme.text,
+              profile.bg_image_url && "text-white border-white"
             )}
           >
             Built with Chip NG

@@ -38,7 +38,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Profile, Link as LinkType, THEMES } from "../types";
+import { Profile, Link as LinkType, THEMES, FONTS } from "../types";
 import { IconPicker, IconRenderer } from "../components/IconPicker";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -183,7 +183,9 @@ export default function Dashboard() {
   const [pickingIconFor, setPickingIconFor] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingBg, setIsUploadingBg] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bgFileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const sensors = useSensors(
@@ -327,6 +329,33 @@ export default function Dashboard() {
       console.error("Upload failed", err);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleBackgroundUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const headers = getAuthHeaders();
+    const formData = new FormData();
+    formData.append("background", file);
+
+    setIsUploadingBg(true);
+    try {
+      const res = await fetch("/api/profile/background", {
+        method: "POST",
+        headers: { "x-user-id": headers["x-user-id"] },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(prev => prev ? { ...prev, bg_image_url: data.bgImageUrl } : null);
+      }
+    } catch (err) {
+      console.error("Upload failed", err);
+    } finally {
+      setIsUploadingBg(false);
     }
   };
 
@@ -492,6 +521,68 @@ export default function Dashboard() {
                     >
                       <div className={cn("w-full h-12 rounded-lg", theme.bg)} />
                       <span className="text-sm font-bold">{theme.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="bg-white p-8 rounded-3xl border border-zinc-200 flex flex-col gap-6">
+                <h2 className="text-xl font-bold">Background</h2>
+                <div className="flex flex-col gap-4">
+                  <div className="relative w-full h-32 bg-zinc-100 rounded-2xl overflow-hidden border-2 border-zinc-200 group">
+                    {profile.bg_image_url ? (
+                      <img src={profile.bg_image_url} alt="Background" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <ImageIcon size={32} />
+                      </div>
+                    )}
+                    {isUploadingBg && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white">
+                        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <button 
+                        onClick={() => bgFileInputRef.current?.click()}
+                        className="bg-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg hover:scale-105 transition-all"
+                      >
+                        Change Background
+                      </button>
+                    </div>
+                  </div>
+                  <input 
+                    type="file" 
+                    ref={bgFileInputRef}
+                    onChange={handleBackgroundUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                  {profile.bg_image_url && (
+                    <button 
+                      onClick={() => handleUpdateProfile({ bg_image_url: "" })}
+                      className="text-xs font-bold text-red-500 uppercase tracking-wider hover:underline self-start"
+                    >
+                      Remove Background Image
+                    </button>
+                  )}
+                </div>
+              </section>
+
+              <section className="bg-white p-8 rounded-3xl border border-zinc-200 flex flex-col gap-6">
+                <h2 className="text-xl font-bold">Fonts</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  {FONTS.map((font) => (
+                    <button 
+                      key={font.id}
+                      onClick={() => handleUpdateProfile({ font_family: font.id })}
+                      className={cn(
+                        "p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-1",
+                        profile.font_family === font.id ? "border-zinc-900" : "border-zinc-100 hover:border-zinc-200"
+                      )}
+                    >
+                      <span className={cn("text-lg", font.family)}>Abc</span>
+                      <span className="text-sm font-bold">{font.name}</span>
                     </button>
                   ))}
                 </div>
@@ -676,10 +767,20 @@ function TabButton({ children, active, onClick }: { children: ReactNode, active:
 
 function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[] }) {
   const theme = THEMES.find(t => t.id === profile.theme) || THEMES[0];
+  const font = FONTS.find(f => f.id === profile.font_family) || FONTS[0];
   
   return (
-    <div className={cn("min-h-full p-8 flex flex-col items-center gap-8", theme.bg)}>
-      <div className="flex flex-col items-center gap-4 text-center">
+    <div 
+      className={cn("min-h-full p-8 flex flex-col items-center gap-8 relative", theme.bg, font.family)}
+      style={profile.bg_image_url ? {
+        backgroundImage: `url(${profile.bg_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      } : {}}
+    >
+      {profile.bg_image_url && <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />}
+      
+      <div className="flex flex-col items-center gap-4 text-center relative z-10">
         <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/20 shadow-lg">
           {profile.avatar_url ? (
             <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -690,24 +791,25 @@ function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <h2 className={cn("text-xl font-bold", theme.text)}>@{profile.username}</h2>
-          <p className={cn("text-sm opacity-80", theme.text)}>{profile.bio}</p>
+          <h2 className={cn("text-xl font-bold", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>@{profile.username}</h2>
+          <p className={cn("text-sm opacity-80", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>{profile.bio}</p>
         </div>
       </div>
 
-      <div className="w-full flex flex-col gap-3">
+      <div className="w-full flex flex-col gap-3 relative z-10">
         {links.filter(l => l.active).map(link => (
           <div 
             key={link.id}
             style={{ 
-              color: link.color || (theme.id === 'dark' ? '#fafafa' : '#18181b'),
-              borderColor: link.color ? `${link.color}40` : undefined,
-              backgroundColor: link.color ? `${link.color}08` : undefined
+              color: link.color || (profile.bg_image_url ? '#ffffff' : (theme.id === 'dark' ? '#fafafa' : '#18181b')),
+              borderColor: link.color ? `${link.color}40` : (profile.bg_image_url ? 'rgba(255,255,255,0.3)' : undefined),
+              backgroundColor: link.color ? `${link.color}08` : (profile.bg_image_url ? 'rgba(255,255,255,0.1)' : undefined),
+              backdropFilter: profile.bg_image_url ? 'blur(8px)' : undefined
             }}
             className={cn(
               "w-full py-4 px-6 rounded-2xl text-center font-bold transition-transform active:scale-95 shadow-sm flex items-center justify-center gap-3 border",
-              !link.color && theme.button,
-              !link.color && theme.buttonText
+              !link.color && !profile.bg_image_url && theme.button,
+              !link.color && !profile.bg_image_url && theme.buttonText
             )}
           >
             {link.icon && <IconRenderer name={link.icon} size={20} />}
@@ -716,8 +818,8 @@ function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[
         ))}
       </div>
 
-      <div className="mt-auto pt-8">
-        <div className={cn("text-[10px] font-bold uppercase tracking-[0.2em] opacity-50", theme.text)}>
+      <div className="mt-auto pt-8 relative z-10">
+        <div className={cn("text-[10px] font-bold uppercase tracking-[0.2em] opacity-50", theme.text, profile.bg_image_url && "text-white")}>
           Chip NG
         </div>
       </div>

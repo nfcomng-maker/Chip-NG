@@ -12,6 +12,8 @@ export interface Profile {
   bio: string;
   avatar_url: string;
   theme: string;
+  font_family: string;
+  bg_image_url: string;
   plan: string;
 }
 
@@ -74,4 +76,17 @@ export const THEMES: Theme[] = [
     button: 'bg-emerald-500',
     buttonText: 'text-white'
   }
+];
+
+export interface Font {
+  id: string;
+  name: string;
+  family: string;
+}
+
+export const FONTS: Font[] = [
+  { id: 'sans', name: 'Modern Sans', family: 'font-sans' },
+  { id: 'serif', name: 'Elegant Serif', family: 'font-serif' },
+  { id: 'mono', name: 'Technical Mono', family: 'font-mono' },
+  { id: 'display', name: 'Bold Display', family: 'font-display' },
 ];
