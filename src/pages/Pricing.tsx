@@ -24,13 +24,13 @@ export default function Pricing() {
   };
 
   return (
-    <div className="flex flex-col gap-16 py-12">
+    <div className="flex flex-col gap-16 py-12 px-4">
       <div className="text-center max-w-2xl mx-auto flex flex-col gap-4">
-        <h1 className="text-5xl font-extrabold tracking-tight">Choose your plan</h1>
-        <p className="text-xl text-zinc-600">Simple, transparent pricing for creators and businesses in Nigeria.</p>
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-zinc-900 dark:text-white">Choose your plan</h1>
+        <p className="text-lg sm:text-xl text-zinc-600 dark:text-zinc-400">Simple, transparent pricing for creators and businesses in Nigeria.</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <PricingCard 
           name="Free"
           price="₦0"
@@ -85,8 +85,8 @@ export default function Pricing() {
         />
       </div>
 
-      <section className="max-w-3xl mx-auto bg-white p-12 rounded-[3rem] border border-zinc-200 flex flex-col gap-8">
-        <h2 className="text-3xl font-bold text-center">Frequently Asked Questions</h2>
+      <section className="max-w-3xl mx-auto bg-white dark:bg-zinc-900 p-8 sm:p-12 rounded-[2rem] sm:rounded-[3rem] border border-zinc-200 dark:border-zinc-800 flex flex-col gap-8 transition-colors">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center text-zinc-900 dark:text-white">Frequently Asked Questions</h2>
         <div className="flex flex-col gap-6">
           <FAQItem 
             question="Can I cancel my subscription anytime?"
@@ -145,22 +145,24 @@ function PricingCard({ name, price, amount, plan, email, period, description, fe
       whileHover={{ y: -8 }}
       className={cn(
         "p-8 rounded-[2.5rem] border flex flex-col gap-8 transition-all",
-        active ? "bg-zinc-900 text-white border-zinc-900 shadow-2xl scale-105" : "bg-white text-zinc-900 border-zinc-200 hover:shadow-xl"
+        active 
+          ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-zinc-900 dark:border-white shadow-2xl md:scale-105" 
+          : "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800 hover:shadow-xl"
       )}
     >
       <div className="flex flex-col gap-2">
         <h3 className="text-2xl font-bold">{name}</h3>
         <div className="flex items-baseline gap-1">
           <span className="text-4xl font-extrabold">{price}</span>
-          {period && <span className={cn("text-sm font-medium", active ? "text-zinc-400" : "text-zinc-500")}>{period}</span>}
+          {period && <span className={cn("text-sm font-medium", active ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-500 dark:text-zinc-400")}>{period}</span>}
         </div>
-        <p className={cn("text-sm leading-relaxed", active ? "text-zinc-400" : "text-zinc-500")}>{description}</p>
+        <p className={cn("text-sm leading-relaxed", active ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-500 dark:text-zinc-400")}>{description}</p>
       </div>
 
       <ul className="flex flex-col gap-4 flex-1">
         {features.map((feature, i) => (
           <li key={i} className="flex items-start gap-3 text-sm font-medium">
-            <div className={cn("mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0", active ? "bg-zinc-800 text-emerald-400" : "bg-zinc-100 text-emerald-600")}>
+            <div className={cn("mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0", active ? "bg-zinc-800 dark:bg-zinc-100 text-emerald-400" : "bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400")}>
               <Check size={12} />
             </div>
             {feature}
@@ -172,7 +174,9 @@ function PricingCard({ name, price, amount, plan, email, period, description, fe
         onClick={handleClick}
         className={cn(
           "w-full py-4 rounded-2xl font-bold transition-all",
-          active ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-zinc-900 text-white hover:bg-zinc-800"
+          active 
+            ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800" 
+            : "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100"
         )}
       >
         {buttonText}
@@ -184,8 +188,8 @@ function PricingCard({ name, price, amount, plan, email, period, description, fe
 function FAQItem({ question, answer }: { question: string, answer: string }) {
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="text-lg font-bold text-zinc-900">{question}</h4>
-      <p className="text-zinc-600 leading-relaxed">{answer}</p>
+      <h4 className="text-lg font-bold text-zinc-900 dark:text-white">{question}</h4>
+      <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">{answer}</p>
     </div>
   );
 }

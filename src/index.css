@@ -8,6 +8,8 @@
   --font-display: "Space Grotesk", sans-serif;
 }
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     @apply antialiased;

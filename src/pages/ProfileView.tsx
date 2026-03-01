@@ -44,16 +44,16 @@ export default function ProfileView() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-zinc-200 border-t-zinc-900 rounded-full animate-spin" />
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center transition-colors">
+      <div className="w-12 h-12 border-4 border-zinc-200 dark:border-zinc-800 border-t-zinc-900 dark:border-t-white rounded-full animate-spin" />
     </div>
   );
 
   if (error || !profile) return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-4xl font-bold text-zinc-900">Oops!</h1>
-      <p className="text-zinc-600">The profile you're looking for doesn't exist.</p>
-      <a href="/" className="bg-zinc-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-zinc-800 transition-all">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center gap-4 p-8 text-center transition-colors">
+      <h1 className="text-4xl font-bold text-zinc-900 dark:text-white">Oops!</h1>
+      <p className="text-zinc-600 dark:text-zinc-400">The profile you're looking for doesn't exist.</p>
+      <a href="/" className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-6 py-3 rounded-2xl font-bold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all">
         Create Your Own Profile
       </a>
     </div>
@@ -76,22 +76,22 @@ export default function ProfileView() {
 
       <div className="max-w-xl w-full flex flex-col items-center gap-12 relative z-10">
         {/* Profile Header */}
-        <div className="flex flex-col items-center gap-6 text-center">
-          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl">
+        <div className="flex flex-col items-center gap-6 text-center px-4">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl">
             {profile.avatar_url ? (
               <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <div className="w-full h-full bg-zinc-200 flex items-center justify-center text-zinc-400">
-                <ImageIcon size={40} />
+              <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
+                <ImageIcon size={32} className="sm:size-40" />
               </div>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <h1 className={cn("text-2xl font-extrabold tracking-tight", theme.text, profile.bg_image_url && "text-white drop-shadow-lg")}>
+            <h1 className={cn("text-xl sm:text-2xl font-extrabold tracking-tight", theme.text, profile.bg_image_url && "text-white drop-shadow-lg")}>
               {profile.display_name || `@${profile.username}`}
             </h1>
             {profile.bio && (
-              <p className={cn("text-lg font-medium opacity-80 max-w-md", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>
+              <p className={cn("text-base sm:text-lg font-medium opacity-80 max-w-md", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>
                 {profile.bio}
               </p>
             )}
@@ -192,10 +192,10 @@ function PaymentModal({ link, onClose }: { link: LinkType, onClose: () => void }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-      <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full flex flex-col gap-6 shadow-2xl">
+      <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 max-w-sm w-full flex flex-col gap-6 shadow-2xl border border-transparent dark:border-zinc-800 transition-colors">
         <div className="flex flex-col gap-2 text-center">
-          <h3 className="text-xl font-bold">Purchase {link.title}</h3>
-          <p className="text-zinc-500 text-sm">Enter your email to proceed with the payment of ₦{(link.price || 0).toLocaleString()}</p>
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Purchase {link.title}</h3>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">Enter your email to proceed with the payment of ₦{(link.price || 0).toLocaleString()}</p>
         </div>
         
         <input 
@@ -203,7 +203,7 @@ function PaymentModal({ link, onClose }: { link: LinkType, onClose: () => void }
           placeholder="your@email.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-zinc-900 transition-all"
+          className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white text-zinc-900 dark:text-white transition-all"
         />
 
         <div className="flex flex-col gap-3">
@@ -215,13 +215,13 @@ function PaymentModal({ link, onClose }: { link: LinkType, onClose: () => void }
                 onClose: () => console.log("Payment closed"),
               });
             }}
-            className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-4 rounded-2xl font-bold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Pay Now
           </button>
           <button 
             onClick={onClose}
-            className="w-full py-4 rounded-2xl font-bold text-zinc-500 hover:bg-zinc-50 transition-all"
+            className="w-full py-4 rounded-2xl font-bold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all"
           >
             Cancel
           </button>
