@@ -1,7 +1,28 @@
 import { Check } from "lucide-react";
 import { motion } from "motion/react";
+import { usePaystackPayment } from "react-paystack";
+import { useNavigate } from "react-router-dom";
 
 export default function Pricing() {
+  const navigate = useNavigate();
+  const userId = localStorage.getItem("chip_user_id");
+  const userEmail = localStorage.getItem("chip_user_email") || "customer@example.com";
+
+  const handlePaymentSuccess = async (reference: any, plan: string) => {
+    try {
+      const res = await fetch("/api/payments/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: reference.reference, plan, userId })
+      });
+      if (res.ok) {
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      console.error("Payment verification failed", err);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-16 py-12">
       <div className="text-center max-w-2xl mx-auto flex flex-col gap-4">
@@ -22,10 +43,14 @@ export default function Pricing() {
           ]}
           buttonText="Get Started"
           active={false}
+          onSelect={() => navigate("/dashboard")}
         />
         <PricingCard 
           name="Pro"
-          price="₦2,500"
+          price="₦5,000"
+          amount={500000} // in kobo
+          plan="pro"
+          email={userEmail}
           period="/ month"
           description="For creators who want to stand out."
           features={[
@@ -37,10 +62,14 @@ export default function Pricing() {
           ]}
           buttonText="Upgrade to Pro"
           active={true}
+          onSuccess={handlePaymentSuccess}
         />
         <PricingCard 
           name="Business"
-          price="₦7,500"
+          price="₦10,000"
+          amount={1000000} // in kobo
+          plan="business"
+          email={userEmail}
           period="/ month"
           description="For teams and growing businesses."
           features={[
@@ -50,8 +79,9 @@ export default function Pricing() {
             "Custom domains",
             "Dedicated account manager"
           ]}
-          buttonText="Contact Sales"
+          buttonText="Upgrade to Business"
           active={false}
+          onSuccess={handlePaymentSuccess}
         />
       </div>
 
@@ -76,15 +106,40 @@ export default function Pricing() {
   );
 }
 
-function PricingCard({ name, price, period, description, features, buttonText, active }: { 
+function PricingCard({ name, price, amount, plan, email, period, description, features, buttonText, active, onSelect, onSuccess }: { 
   name: string, 
   price: string, 
+  amount?: number,
+  plan?: string,
+  email?: string,
   period?: string, 
   description: string, 
   features: string[], 
   buttonText: string,
-  active?: boolean
+  active?: boolean,
+  onSelect?: () => void,
+  onSuccess?: (reference: any, plan: string) => void
 }) {
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: email || "customer@example.com",
+    amount: amount || 0,
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "",
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const handleClick = () => {
+    if (onSelect) {
+      onSelect();
+    } else if (onSuccess && plan) {
+      initializePayment({
+        onSuccess: (reference: any) => onSuccess(reference, plan),
+        onClose: () => console.log("Payment closed"),
+      });
+    }
+  };
+
   return (
     <motion.div 
       whileHover={{ y: -8 }}
@@ -113,10 +168,13 @@ function PricingCard({ name, price, period, description, features, buttonText, a
         ))}
       </ul>
 
-      <button className={cn(
-        "w-full py-4 rounded-2xl font-bold transition-all",
-        active ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-zinc-900 text-white hover:bg-zinc-800"
-      )}>
+      <button 
+        onClick={handleClick}
+        className={cn(
+          "w-full py-4 rounded-2xl font-bold transition-all",
+          active ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-zinc-900 text-white hover:bg-zinc-800"
+        )}
+      >
         {buttonText}
       </button>
     </motion.div>

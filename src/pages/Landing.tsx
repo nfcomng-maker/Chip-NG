@@ -1,9 +1,18 @@
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { Link2, Zap, BarChart3, Palette, CheckCircle2 } from "lucide-react";
-import { ReactNode } from "react";
+import { Link2, Zap, BarChart3, Palette, CheckCircle2, User, ArrowRight } from "lucide-react";
+import { ReactNode, useEffect, useState } from "react";
 
 export default function Landing() {
+  const [featured, setFeatured] = useState<Array<{ username: string, display_name: string, avatar_url: string, bio: string }>>([]);
+
+  useEffect(() => {
+    fetch("/api/featured")
+      .then(res => res.json())
+      .then(data => setFeatured(data))
+      .catch(err => console.error("Failed to fetch featured creators", err));
+  }, []);
+
   return (
     <div className="flex flex-col gap-24 py-12">
       {/* Hero Section */}
@@ -37,6 +46,43 @@ export default function Landing() {
           </Link>
         </motion.div>
       </section>
+
+      {/* Featured Creators */}
+      {featured.length > 0 && (
+        <section className="flex flex-col gap-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-bold text-zinc-900">Featured Creators</h2>
+            <Link to="/explore" className="text-sm font-bold text-zinc-500 hover:text-zinc-900 flex items-center gap-1 transition-colors">
+              Explore all <ArrowRight size={16} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featured.map((creator) => (
+              <Link 
+                key={creator.username}
+                to={`/p/${creator.username}`}
+                className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 hover:shadow-xl transition-all hover:-translate-y-1 group"
+              >
+                <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-zinc-100 border-2 border-zinc-100 group-hover:border-zinc-900 transition-colors">
+                    {creator.avatar_url ? (
+                      <img src={creator.avatar_url} alt={creator.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400">
+                        <User size={32} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="font-bold text-zinc-900">@{creator.username}</h3>
+                    <p className="text-xs text-zinc-500 line-clamp-2">{creator.bio}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Features Grid */}
       <section className="grid md:grid-cols-3 gap-8">

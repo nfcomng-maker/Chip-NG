@@ -3,6 +3,7 @@ export interface User {
   username: string;
   email: string;
   plan: 'free' | 'pro' | 'business';
+  role: 'user' | 'admin';
 }
 
 export interface Profile {
@@ -15,6 +16,7 @@ export interface Profile {
   font_family: string;
   bg_image_url: string;
   plan: string;
+  role: 'user' | 'admin';
 }
 
 export interface Link {
@@ -27,6 +29,8 @@ export interface Link {
   clicks: number;
   active: number;
   color?: string;
+  price?: number;
+  is_product?: number;
 }
 
 export interface Theme {

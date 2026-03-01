@@ -19,7 +19,13 @@ import {
   Share2,
   Check,
   Upload,
-  GripVertical
+  GripVertical,
+  Code,
+  Copy,
+  Shield,
+  Users,
+  UserPlus,
+  Activity
 } from "lucide-react";
 import { 
   DndContext, 
@@ -151,6 +157,30 @@ function SortableLink({
               />
             </div>
           </div>
+
+          <div className="flex items-center gap-4 border-l border-zinc-100 pl-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={link.is_product === 1}
+                onChange={(e) => onUpdate(link.id, { is_product: e.target.checked ? 1 : 0 })}
+                className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+              />
+              <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Product</span>
+            </label>
+            {link.is_product === 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">₦</span>
+                <input 
+                  type="number" 
+                  value={link.price || 0}
+                  onChange={(e) => onUpdate(link.id, { price: parseInt(e.target.value) })}
+                  className="w-20 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-bold outline-none focus:ring-1 focus:ring-zinc-900"
+                  placeholder="Price"
+                />
+              </div>
+            )}
+          </div>
         </div>
         <div className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
           {link.clicks} Clicks
@@ -178,7 +208,15 @@ export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [links, setLinks] = useState<LinkType[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
-  const [activeTab, setActiveTab] = useState<'links' | 'appearance' | 'analytics' | 'subscription'>('links');
+  const [apiKeys, setApiKeys] = useState<Array<{ id: number, name: string, created_at: string, partial_key: string }>>([]);
+  const [adminStats, setAdminStats] = useState<{ totalUsers: number, proUsers: number, totalClicks: number, totalRevenue: number } | null>(null);
+  const [adminUsers, setAdminUsers] = useState<Array<{ id: number, username: string, email: string, plan: string, role: string, is_verified: number, is_featured: number, display_name: string }>>([]);
+  const [adminLinks, setAdminLinks] = useState<Array<{ id: number, title: string, url: string, username: string, email: string, clicks: number, active: number }>>([]);
+  const [activeTab, setActiveTab] = useState<'links' | 'appearance' | 'analytics' | 'subscription' | 'developer' | 'admin'>('links');
+  const [newKeyName, setNewKeyName] = useState("");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", email: "", password: "", plan: "free", role: "user" });
   const [isSaving, setIsSaving] = useState(false);
   const [pickingIconFor, setPickingIconFor] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -212,10 +250,11 @@ export default function Dashboard() {
     const headers = getAuthHeaders();
     if (Object.keys(headers).length === 0) return;
 
-    const [profileRes, linksRes, subRes] = await Promise.all([
+    const [profileRes, linksRes, subRes, keysRes] = await Promise.all([
       fetch("/api/profile", { headers }),
       fetch("/api/links", { headers }),
-      fetch("/api/subscription", { headers })
+      fetch("/api/subscription", { headers }),
+      fetch("/api/keys", { headers })
     ]);
 
     if (profileRes.status === 401) {
@@ -226,9 +265,26 @@ export default function Dashboard() {
     const profileData = await profileRes.json();
     const linksData = await linksRes.json();
     const subData = await subRes.json();
+    
     setProfile(profileData);
     setLinks(linksData);
     setSubscription(subData);
+
+    if (keysRes.ok) {
+      const keysData = await keysRes.json();
+      setApiKeys(keysData);
+    }
+
+    if (profileData.role === 'admin') {
+      const [statsRes, adminUsersRes, adminLinksRes] = await Promise.all([
+        fetch("/api/admin/stats", { headers }),
+        fetch("/api/admin/users", { headers }),
+        fetch("/api/admin/content", { headers })
+      ]);
+      if (statsRes.ok) setAdminStats(await statsRes.json());
+      if (adminUsersRes.ok) setAdminUsers(await adminUsersRes.json());
+      if (adminLinksRes.ok) setAdminLinks(await adminLinksRes.json());
+    }
   };
 
   const handleAddLink = async () => {
@@ -366,6 +422,106 @@ export default function Dashboard() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleGenerateKey = async () => {
+    if (!newKeyName) return;
+    const headers = getAuthHeaders();
+    const res = await fetch("/api/keys", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newKeyName })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setGeneratedKey(data.key);
+      setNewKeyName("");
+      fetchData();
+    }
+  };
+
+  const handleDeleteKey = async (id: number) => {
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/keys/${id}`, {
+      method: "DELETE",
+      headers
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleCreateUser = async () => {
+    const headers = getAuthHeaders();
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(newUser)
+    });
+    if (res.ok) {
+      setIsCreatingUser(false);
+      setNewUser({ username: "", email: "", password: "", plan: "free", role: "user" });
+      fetchData();
+    }
+  };
+
+  const handleUpdateUserRole = async (id: number, role: string) => {
+    const headers = getAuthHeaders();
+    const user = adminUsers.find(u => u.id === id);
+    if (!user) return;
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: user.plan, role, is_verified: user.is_verified })
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleUpdateUserPlan = async (id: number, plan: string) => {
+    const headers = getAuthHeaders();
+    const user = adminUsers.find(u => u.id === id);
+    if (!user) return;
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ plan, role: user.role, is_verified: user.is_verified, is_featured: user.is_featured })
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleToggleFeatured = async (id: number) => {
+    const headers = getAuthHeaders();
+    const user = adminUsers.find(u => u.id === id);
+    if (!user) return;
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        plan: user.plan, 
+        role: user.role, 
+        is_verified: user.is_verified, 
+        is_featured: user.is_featured === 1 ? 0 : 1 
+      })
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleDeleteAdminLink = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this link?")) return;
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/admin/links/${id}`, {
+      method: "DELETE",
+      headers
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this user? This action is irreversible.")) return;
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "DELETE",
+      headers
+    });
+    if (res.ok) fetchData();
+  };
+
   if (!profile) return <div className="flex items-center justify-center h-64">Loading...</div>;
 
   return (
@@ -411,6 +567,18 @@ export default function Dashboard() {
             <CreditCard size={18} />
             Subscription
           </TabButton>
+          {profile.role === 'admin' && (
+            <TabButton active={activeTab === 'developer'} onClick={() => setActiveTab('developer')}>
+              <Code size={18} />
+              Developer
+            </TabButton>
+          )}
+          {profile.role === 'admin' && (
+            <TabButton active={activeTab === 'admin'} onClick={() => setActiveTab('admin')}>
+              <Shield size={18} />
+              Admin
+            </TabButton>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -717,6 +885,334 @@ export default function Dashboard() {
                     <div className="text-xs text-zinc-500">Your payment history will appear here once you subscribe to a paid plan.</div>
                   </div>
                 )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'developer' && profile.role === 'admin' && (
+            <div className="flex flex-col gap-8">
+              <section className="bg-white p-8 rounded-3xl border border-zinc-200 flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">API Keys</h2>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Key Name (e.g. Mobile App)"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      className="bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-zinc-900 outline-none"
+                    />
+                    <button 
+                      onClick={handleGenerateKey}
+                      className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-zinc-800 transition-all"
+                    >
+                      Generate Key
+                    </button>
+                  </div>
+                </div>
+
+                {generatedKey && (
+                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex flex-col gap-2">
+                    <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider">New API Key Generated</div>
+                    <div className="text-xs text-emerald-600 mb-2">Make sure to copy this key now. You won't be able to see it again!</div>
+                    <div className="flex items-center gap-2 bg-white p-3 rounded-xl border border-emerald-200">
+                      <code className="flex-1 text-sm font-mono break-all">{generatedKey}</code>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedKey);
+                          setGeneratedKey(null);
+                        }}
+                        className="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 transition-colors"
+                        title="Copy to clipboard"
+                      >
+                        <Copy size={18} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-4">
+                  {apiKeys.length > 0 ? (
+                    apiKeys.map((key) => (
+                      <div key={key.id} className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                        <div className="flex flex-col gap-1">
+                          <div className="font-bold text-zinc-900">{key.name}</div>
+                          <div className="text-xs text-zinc-500 font-mono">{key.partial_key} • Created on {new Date(key.created_at).toLocaleDateString()}</div>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteKey(key.id)}
+                          className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+                      <div className="text-zinc-400 mb-2">No API keys found</div>
+                      <div className="text-xs text-zinc-500">Generate a key to access your data from external applications.</div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="bg-zinc-900 text-white p-8 rounded-3xl flex flex-col gap-6">
+                <h2 className="text-xl font-bold">API Documentation</h2>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Authentication</div>
+                    <p className="text-sm text-zinc-400">Include your API key in the <code className="text-zinc-200">x-api-key</code> header of your requests.</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Endpoints</div>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3 bg-zinc-800 p-3 rounded-xl border border-zinc-700">
+                        <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded uppercase">GET</span>
+                        <code className="text-xs text-zinc-300 flex-1">/api/profile</code>
+                      </div>
+                      <div className="flex items-center gap-3 bg-zinc-800 p-3 rounded-xl border border-zinc-700">
+                        <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded uppercase">GET</span>
+                        <code className="text-xs text-zinc-300 flex-1">/api/links</code>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'admin' && profile.role === 'admin' && (
+            <div className="flex flex-col gap-8">
+              {/* Admin Stats */}
+              <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-6 rounded-3xl border border-zinc-200">
+                  <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                    <Users size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Users</span>
+                  </div>
+                  <div className="text-2xl font-bold">{adminStats?.totalUsers || 0}</div>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-zinc-200">
+                  <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                    <CheckCircle2 size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Pro Users</span>
+                  </div>
+                  <div className="text-2xl font-bold">{adminStats?.proUsers || 0}</div>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-zinc-200">
+                  <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                    <Activity size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Clicks</span>
+                  </div>
+                  <div className="text-2xl font-bold">{adminStats?.totalClicks || 0}</div>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-zinc-200">
+                  <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                    <CreditCard size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">Revenue</span>
+                  </div>
+                  <div className="text-2xl font-bold">₦{(adminStats?.totalRevenue || 0).toLocaleString()}</div>
+                </div>
+              </section>
+
+              {/* User Management */}
+              <section className="bg-white p-8 rounded-3xl border border-zinc-200 flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">User Management</h2>
+                  <button 
+                    onClick={() => setIsCreatingUser(!isCreatingUser)}
+                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-zinc-800 transition-all"
+                  >
+                    <UserPlus size={18} />
+                    Add User
+                  </button>
+                </div>
+
+                {isCreatingUser && (
+                  <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-200 flex flex-col gap-4">
+                    <h3 className="font-bold text-sm">Create New User</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input 
+                        type="text" 
+                        placeholder="Username"
+                        value={newUser.username}
+                        onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                        className="bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm outline-none"
+                      />
+                      <input 
+                        type="email" 
+                        placeholder="Email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                        className="bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm outline-none"
+                      />
+                      <input 
+                        type="password" 
+                        placeholder="Password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                        className="bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm outline-none"
+                      />
+                      <div className="flex gap-2">
+                        <select 
+                          value={newUser.plan}
+                          onChange={(e) => setNewUser({...newUser, plan: e.target.value})}
+                          className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm outline-none"
+                        >
+                          <option value="free">Free</option>
+                          <option value="pro">Pro</option>
+                          <option value="business">Business</option>
+                        </select>
+                        <select 
+                          value={newUser.role}
+                          onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                          className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-2 text-sm outline-none"
+                        >
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => setIsCreatingUser(false)}
+                        className="px-4 py-2 rounded-xl text-sm font-bold text-zinc-500 hover:bg-zinc-100 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleCreateUser}
+                        className="bg-zinc-900 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-zinc-800 transition-all"
+                      >
+                        Create User
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">User</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Plan</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Role</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Featured</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50">
+                      {adminUsers.map((user) => (
+                        <tr key={user.id} className="group">
+                          <td className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-zinc-900">{user.display_name || user.username}</span>
+                              <span className="text-xs text-zinc-500">{user.email}</span>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <select 
+                              value={user.plan}
+                              onChange={(e) => handleUpdateUserPlan(user.id, e.target.value)}
+                              className="bg-transparent border-none text-sm font-bold capitalize outline-none cursor-pointer hover:text-zinc-600"
+                            >
+                              <option value="free">Free</option>
+                              <option value="pro">Pro</option>
+                              <option value="business">Business</option>
+                            </select>
+                          </td>
+                          <td className="py-4">
+                            <select 
+                              value={user.role}
+                              onChange={(e) => handleUpdateUserRole(user.id, e.target.value)}
+                              className="bg-transparent border-none text-sm font-bold capitalize outline-none cursor-pointer hover:text-zinc-600"
+                            >
+                              <option value="user">User</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                          </td>
+                          <td className="py-4">
+                            <button 
+                              onClick={() => handleToggleFeatured(user.id)}
+                              className={cn(
+                                "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all",
+                                user.is_featured === 1 ? "bg-amber-100 text-amber-600" : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200"
+                              )}
+                            >
+                              {user.is_featured === 1 ? "Featured" : "Promote"}
+                            </button>
+                          </td>
+                          <td className="py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => window.open(`/p/${user.username}`, '_blank')}
+                                className="p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+                                title="View Profile"
+                              >
+                                <ExternalLink size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                                title="Delete User"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* Content Moderation */}
+              <section className="bg-white p-8 rounded-3xl border border-zinc-200 flex flex-col gap-6">
+                <h2 className="text-xl font-bold">Content Moderation</h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-zinc-100">
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Link</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Owner</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider">Clicks</th>
+                        <th className="pb-4 text-xs font-bold text-zinc-400 uppercase tracking-wider text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50">
+                      {adminLinks.map((link) => (
+                        <tr key={link.id} className="group">
+                          <td className="py-4">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-zinc-900">{link.title}</span>
+                              <a href={link.url} target="_blank" className="text-xs text-zinc-400 hover:text-zinc-900 truncate max-w-[200px]">{link.url}</a>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-zinc-900">@{link.username}</span>
+                              <span className="text-[10px] text-zinc-400">{link.email}</span>
+                            </div>
+                          </td>
+                          <td className="py-4">
+                            <span className="text-sm font-bold">{link.clicks}</span>
+                          </td>
+                          <td className="py-4 text-right">
+                            <button 
+                              onClick={() => handleDeleteAdminLink(link.id)}
+                              className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                              title="Delete Link"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             </div>
           )}

@@ -4,7 +4,8 @@ import { Profile, Link as LinkType, THEMES, FONTS } from "../types";
 import { IconRenderer } from "../components/IconPicker";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { ExternalLink, Image as ImageIcon } from "lucide-react";
+import { ExternalLink, Image as ImageIcon, ShoppingBag } from "lucide-react";
+import { usePaystackPayment } from "react-paystack";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,6 +16,7 @@ export default function ProfileView() {
   const [profile, setProfile] = useState<Profile & { links: LinkType[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [payingFor, setPayingFor] = useState<LinkType | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -32,9 +34,13 @@ export default function ProfileView() {
     fetchProfile();
   }, [username]);
 
-  const handleLinkClick = async (id: number, url: string) => {
-    await fetch(`/api/links/${id}/click`, { method: "POST" });
-    window.open(url, "_blank", "noopener,noreferrer");
+  const handleLinkClick = async (link: LinkType) => {
+    await fetch(`/api/links/${link.id}/click`, { method: "POST" });
+    if (link.is_product === 1) {
+      setPayingFor(link);
+    } else {
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   if (loading) return (
@@ -96,7 +102,7 @@ export default function ProfileView() {
           {profile.links.map((link) => (
             <button
               key={link.id}
-              onClick={() => handleLinkClick(link.id, link.url)}
+              onClick={() => handleLinkClick(link)}
               style={{ 
                 color: link.color || (profile.bg_image_url ? '#ffffff' : (theme.id === 'dark' ? '#fafafa' : '#18181b')),
                 borderColor: link.color ? `${link.color}40` : (profile.bg_image_url ? 'rgba(255,255,255,0.3)' : undefined),
@@ -110,11 +116,20 @@ export default function ProfileView() {
               )}
             >
               <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                {link.icon && <IconRenderer name={link.icon} size={24} />}
+                {link.icon ? <IconRenderer name={link.icon} size={24} /> : (link.is_product === 1 ? <ShoppingBag size={24} /> : null)}
               </div>
-              <span className="flex-1 text-center">{link.title}</span>
+              <div className="flex-1 flex flex-col items-center">
+                <span>{link.title}</span>
+                {link.is_product === 1 && (
+                  <span className="text-xs opacity-60">₦{(link.price || 0).toLocaleString()}</span>
+                )}
+              </div>
               <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                <ExternalLink size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                {link.is_product === 1 ? (
+                  <ShoppingBag size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                ) : (
+                  <ExternalLink size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
               </div>
             </button>
           ))}
@@ -133,6 +148,84 @@ export default function ProfileView() {
             Built with Chip NG
           </a>
         </footer>
+      </div>
+
+      {payingFor && (
+        <PaymentModal 
+          link={payingFor} 
+          onClose={() => setPayingFor(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentModal({ link, onClose }: { link: LinkType, onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: email,
+    amount: (link.price || 0) * 100, // in kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "",
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const handleSuccess = async (reference: any) => {
+    try {
+      await fetch("/api/payments/product", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference: reference.reference,
+          linkId: link.id,
+          amount: link.price,
+          email: email
+        })
+      });
+      alert("Payment successful! Thank you for your purchase.");
+      onClose();
+    } catch (err) {
+      console.error("Product payment failed", err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+      <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full flex flex-col gap-6 shadow-2xl">
+        <div className="flex flex-col gap-2 text-center">
+          <h3 className="text-xl font-bold">Purchase {link.title}</h3>
+          <p className="text-zinc-500 text-sm">Enter your email to proceed with the payment of ₦{(link.price || 0).toLocaleString()}</p>
+        </div>
+        
+        <input 
+          type="email" 
+          placeholder="your@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-6 py-4 outline-none focus:ring-2 focus:ring-zinc-900 transition-all"
+        />
+
+        <div className="flex flex-col gap-3">
+          <button 
+            disabled={!email}
+            onClick={() => {
+              initializePayment({
+                onSuccess: handleSuccess,
+                onClose: () => console.log("Payment closed"),
+              });
+            }}
+            className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Pay Now
+          </button>
+          <button 
+            onClick={onClose}
+            className="w-full py-4 rounded-2xl font-bold text-zinc-500 hover:bg-zinc-50 transition-all"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
