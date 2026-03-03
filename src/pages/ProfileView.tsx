@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Profile, Link as LinkType, THEMES, FONTS } from "../types";
+import { Profile, Link as LinkType, SocialFeed, THEMES, FONTS } from "../types";
 import { IconRenderer } from "../components/IconPicker";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { ExternalLink, Image as ImageIcon, ShoppingBag } from "lucide-react";
+import { ExternalLink, Image as ImageIcon, ShoppingBag, UserPlus } from "lucide-react";
 import { usePaystackPayment } from "react-paystack";
+import { downloadVCard } from "../utils/vcard";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,7 +14,7 @@ function cn(...inputs: ClassValue[]) {
 
 export default function ProfileView() {
   const { username } = useParams();
-  const [profile, setProfile] = useState<Profile & { links: LinkType[] } | null>(null);
+  const [profile, setProfile] = useState<Profile & { links: LinkType[], feeds: SocialFeed[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payingFor, setPayingFor] = useState<LinkType | null>(null);
@@ -96,6 +97,20 @@ export default function ProfileView() {
               </p>
             )}
           </div>
+
+          {profile.contact_first_name && (
+            <button 
+              onClick={() => downloadVCard(profile)}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all active:scale-95 shadow-md border",
+                theme.button,
+                theme.buttonText
+              )}
+            >
+              <UserPlus size={18} />
+              Save Contact
+            </button>
+          )}
         </div>
 
         <div className="w-full flex flex-col gap-4">
@@ -135,6 +150,17 @@ export default function ProfileView() {
           ))}
         </div>
 
+        {/* Social Feeds */}
+        {profile.feeds && profile.feeds.length > 0 && (
+          <div className="w-full flex flex-col gap-8">
+            {profile.feeds.map((feed) => (
+              <div key={feed.id} className="w-full bg-white/10 backdrop-blur-md rounded-3xl overflow-hidden border border-white/20 shadow-xl">
+                <SocialEmbed feed={feed} />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Footer */}
         <footer className="mt-12 flex flex-col items-center gap-4">
           <a 
@@ -156,6 +182,77 @@ export default function ProfileView() {
           onClose={() => setPayingFor(null)} 
         />
       )}
+    </div>
+  );
+}
+
+function SocialEmbed({ feed }: { feed: SocialFeed }) {
+  const getEmbedUrl = () => {
+    try {
+      const url = new URL(feed.url);
+      if (feed.type === 'youtube') {
+        let videoId = '';
+        if (url.hostname === 'youtu.be') {
+          videoId = url.pathname.slice(1);
+        } else {
+          videoId = url.searchParams.get('v') || '';
+        }
+        return `https://www.youtube.com/embed/${videoId}`;
+      }
+      if (feed.type === 'instagram') {
+        // Instagram post embed
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        if (pathParts[0] === 'p' || pathParts[0] === 'reel') {
+          return `https://www.instagram.com/p/${pathParts[1]}/embed`;
+        }
+        return null;
+      }
+      if (feed.type === 'tiktok') {
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        const videoId = pathParts[pathParts.length - 1];
+        return `https://www.tiktok.com/embed/v2/${videoId}`;
+      }
+      if (feed.type === 'twitter') {
+        return `https://twitframe.com/show?url=${encodeURIComponent(feed.url)}`;
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  };
+
+  const embedUrl = getEmbedUrl();
+
+  if (!embedUrl) {
+    return (
+      <div className="p-8 text-center flex flex-col items-center gap-4">
+        <div className="text-zinc-400">
+          {feed.type === 'instagram' && <IconRenderer name="Instagram" size={32} />}
+          {feed.type === 'twitter' && <IconRenderer name="Twitter" size={32} />}
+          {feed.type === 'tiktok' && <IconRenderer name="Music2" size={32} />}
+          {feed.type === 'youtube' && <IconRenderer name="Youtube" size={32} />}
+        </div>
+        <p className="text-sm font-medium text-zinc-500">View on {feed.type.charAt(0).toUpperCase() + feed.type.slice(1)}</p>
+        <a 
+          href={feed.url || null} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-xs text-zinc-400 underline hover:text-zinc-200 transition-colors"
+        >
+          {feed.url}
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full aspect-video sm:aspect-[16/9] relative">
+      <iframe 
+        src={embedUrl}
+        className="absolute inset-0 w-full h-full border-0"
+        allowFullScreen
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+      />
     </div>
   );
 }

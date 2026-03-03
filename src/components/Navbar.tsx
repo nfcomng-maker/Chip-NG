@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Link2, LayoutDashboard, CreditCard, Home, LogOut, User, Menu, X } from "lucide-react";
+import { Link2, LayoutDashboard, CreditCard, Home, LogOut, User, Menu, X, Mail, HelpCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { motion, AnimatePresence } from "motion/react";
@@ -43,6 +43,14 @@ export default function Navbar() {
           <Link to="/pricing" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1.5 text-sm font-medium transition-colors">
             <CreditCard size={18} />
             Pricing
+          </Link>
+          <Link to="/contact" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1.5 text-sm font-medium transition-colors">
+            <Mail size={18} />
+            Contact
+          </Link>
+          <Link to="/faq" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1.5 text-sm font-medium transition-colors">
+            <HelpCircle size={18} />
+            FAQ
           </Link>
           
           {username ? (
@@ -108,6 +116,14 @@ export default function Navbar() {
               <Link to="/pricing" onClick={closeMenu} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-900 dark:text-white font-bold transition-colors">
                 <CreditCard size={20} />
                 Pricing
+              </Link>
+              <Link to="/contact" onClick={closeMenu} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-900 dark:text-white font-bold transition-colors">
+                <Mail size={20} />
+                Contact
+              </Link>
+              <Link to="/faq" onClick={closeMenu} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-900 dark:text-white font-bold transition-colors">
+                <HelpCircle size={20} />
+                FAQ
               </Link>
               
               {username ? (

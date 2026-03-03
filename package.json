@@ -27,6 +27,7 @@
     "motion": "^12.23.24",
     "multer": "^2.1.0",
     "nodemailer": "^8.0.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-paystack": "^6.0.0",

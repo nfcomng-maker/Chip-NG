@@ -17,6 +17,14 @@ export interface Profile {
   bg_image_url: string;
   plan: string;
   role: 'user' | 'admin';
+  // Contact Info
+  contact_first_name?: string;
+  contact_last_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  contact_organization?: string;
+  contact_job_title?: string;
+  contact_website?: string;
 }
 
 export interface Link {
@@ -31,6 +39,15 @@ export interface Link {
   color?: string;
   price?: number;
   is_product?: number;
+}
+
+export interface SocialFeed {
+  id: number;
+  user_id: number;
+  type: 'instagram' | 'twitter' | 'tiktok' | 'youtube';
+  url: string;
+  position: number;
+  active: number;
 }
 
 export interface Theme {

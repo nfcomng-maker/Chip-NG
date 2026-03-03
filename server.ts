@@ -90,6 +90,13 @@ db.exec(`
     bg_image_url TEXT,
     font_family TEXT DEFAULT 'sans',
     theme TEXT DEFAULT 'default',
+    contact_first_name TEXT,
+    contact_last_name TEXT,
+    contact_email TEXT,
+    contact_phone TEXT,
+    contact_organization TEXT,
+    contact_job_title TEXT,
+    contact_website TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 
@@ -105,6 +112,16 @@ db.exec(`
     active INTEGER DEFAULT 1,
     price INTEGER DEFAULT 0,
     is_product INTEGER DEFAULT 0,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS social_feeds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    type TEXT,
+    url TEXT,
+    position INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 
@@ -127,6 +144,13 @@ try { db.exec("ALTER TABLE profiles ADD COLUMN avatar_url TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN bg_image_url TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN font_family TEXT DEFAULT 'sans'"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN theme TEXT DEFAULT 'default'"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_first_name TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_last_name TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_email TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_phone TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_organization TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_job_title TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE profiles ADD COLUMN contact_website TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN icon TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN position INTEGER DEFAULT 0"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN color TEXT"); } catch (e) {}
@@ -273,19 +297,31 @@ async function startServer() {
     if (!profile) return res.status(404).json({ error: "Profile not found" });
     
     const links = db.prepare("SELECT * FROM links WHERE user_id = ? AND active = 1 ORDER BY position ASC").all(profile.user_id);
-    res.json({ ...profile, links });
+    const feeds = db.prepare("SELECT * FROM social_feeds WHERE user_id = ? AND active = 1 ORDER BY position ASC").all(profile.user_id);
+    res.json({ ...profile, links, feeds });
   });
 
   app.post("/api/profile", (req, res) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { display_name, bio, avatar_url, theme, font_family, bg_image_url } = req.body;
+    const { 
+      display_name, bio, avatar_url, theme, font_family, bg_image_url,
+      contact_first_name, contact_last_name, contact_email, contact_phone,
+      contact_organization, contact_job_title, contact_website
+    } = req.body;
     db.prepare(`
       UPDATE profiles 
-      SET display_name = ?, bio = ?, avatar_url = ?, theme = ?, font_family = ?, bg_image_url = ? 
+      SET display_name = ?, bio = ?, avatar_url = ?, theme = ?, font_family = ?, bg_image_url = ?,
+          contact_first_name = ?, contact_last_name = ?, contact_email = ?, contact_phone = ?,
+          contact_organization = ?, contact_job_title = ?, contact_website = ?
       WHERE user_id = ?
-    `).run(display_name, bio, avatar_url, theme, font_family, bg_image_url, userId);
+    `).run(
+      display_name, bio, avatar_url, theme, font_family, bg_image_url,
+      contact_first_name, contact_last_name, contact_email, contact_phone,
+      contact_organization, contact_job_title, contact_website,
+      userId
+    );
     res.json({ success: true });
   });
 
@@ -373,6 +409,66 @@ async function startServer() {
 
     const { id } = req.params;
     db.prepare("DELETE FROM links WHERE id = ? AND user_id = ?").run(id, userId);
+    res.json({ success: true });
+  });
+
+  // Social Feed Endpoints
+  app.get("/api/feeds", (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const feeds = db.prepare("SELECT * FROM social_feeds WHERE user_id = ? ORDER BY position ASC").all(userId);
+    res.json(feeds);
+  });
+
+  app.post("/api/feeds", (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { type, url } = req.body;
+    const count = db.prepare("SELECT COUNT(*) as count FROM social_feeds WHERE user_id = ?").get(userId) as any;
+    const result = db.prepare("INSERT INTO social_feeds (user_id, type, url, position) VALUES (?, ?, ?, ?)").run(userId, type, url, count.count);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put("/api/feeds/:id", (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { id } = req.params;
+    const { type, url, active, position } = req.body;
+    db.prepare(`
+      UPDATE social_feeds 
+      SET type = ?, url = ?, active = ?, position = ? 
+      WHERE id = ? AND user_id = ?
+    `).run(type, url, active, position, id, userId);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/feeds/:id", (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { id } = req.params;
+    db.prepare("DELETE FROM social_feeds WHERE id = ? AND user_id = ?").run(id, userId);
+    res.json({ success: true });
+  });
+
+  app.put("/api/feeds/reorder", (req, res) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { feeds: newFeeds } = req.body;
+    
+    const update = db.prepare("UPDATE social_feeds SET position = ? WHERE id = ? AND user_id = ?");
+    
+    const transaction = db.transaction((feedsToUpdate) => {
+      for (const feed of feedsToUpdate) {
+        update.run(feed.position, feed.id, userId);
+      }
+    });
+
+    transaction(newFeeds);
     res.json({ success: true });
   });
 

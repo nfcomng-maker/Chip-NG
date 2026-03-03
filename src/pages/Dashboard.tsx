@@ -25,8 +25,11 @@ import {
   Shield,
   Users,
   UserPlus,
-  Activity
+  Activity,
+  QrCode,
+  Download
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { 
   DndContext, 
   closestCenter,
@@ -44,7 +47,8 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Profile, Link as LinkType, THEMES, FONTS } from "../types";
+import { Profile, Link as LinkType, SocialFeed, THEMES, FONTS } from "../types";
+import { downloadVCard } from "../utils/vcard";
 import { IconPicker, IconRenderer } from "../components/IconPicker";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -207,12 +211,13 @@ interface SubscriptionData {
 export default function Dashboard() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [links, setLinks] = useState<LinkType[]>([]);
+  const [feeds, setFeeds] = useState<SocialFeed[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [apiKeys, setApiKeys] = useState<Array<{ id: number, name: string, created_at: string, partial_key: string }>>([]);
   const [adminStats, setAdminStats] = useState<{ totalUsers: number, proUsers: number, totalClicks: number, totalRevenue: number } | null>(null);
   const [adminUsers, setAdminUsers] = useState<Array<{ id: number, username: string, email: string, plan: string, role: string, is_verified: number, is_featured: number, display_name: string }>>([]);
   const [adminLinks, setAdminLinks] = useState<Array<{ id: number, title: string, url: string, username: string, email: string, clicks: number, active: number }>>([]);
-  const [activeTab, setActiveTab] = useState<'links' | 'appearance' | 'analytics' | 'subscription' | 'developer' | 'admin'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'feeds' | 'qrcode' | 'contact' | 'appearance' | 'analytics' | 'subscription' | 'developer' | 'admin'>('links');
   const [newKeyName, setNewKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -250,9 +255,10 @@ export default function Dashboard() {
     const headers = getAuthHeaders();
     if (Object.keys(headers).length === 0) return;
 
-    const [profileRes, linksRes, subRes, keysRes] = await Promise.all([
+    const [profileRes, linksRes, feedsRes, subRes, keysRes] = await Promise.all([
       fetch("/api/profile", { headers }),
       fetch("/api/links", { headers }),
+      fetch("/api/feeds", { headers }),
       fetch("/api/subscription", { headers }),
       fetch("/api/keys", { headers })
     ]);
@@ -264,10 +270,12 @@ export default function Dashboard() {
 
     const profileData = await profileRes.json();
     const linksData = await linksRes.json();
+    const feedsData = await feedsRes.json();
     const subData = await subRes.json();
     
     setProfile(profileData);
     setLinks(linksData);
+    setFeeds(feedsData);
     setSubscription(subData);
 
     if (keysRes.ok) {
@@ -318,6 +326,39 @@ export default function Dashboard() {
     if (res.ok) fetchData();
   };
 
+  const handleAddFeed = async () => {
+    const headers = getAuthHeaders();
+    const res = await fetch("/api/feeds", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "instagram", url: "" })
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleUpdateFeed = async (id: number, updates: Partial<SocialFeed>) => {
+    const headers = getAuthHeaders();
+    const feed = feeds.find(f => f.id === id);
+    if (!feed) return;
+
+    const res = await fetch(`/api/feeds/${id}`, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...feed, ...updates })
+    });
+    if (res.ok) fetchData();
+  };
+
+  const handleDeleteFeed = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this feed?")) return;
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/feeds/${id}`, {
+      method: "DELETE",
+      headers
+    });
+    if (res.ok) fetchData();
+  };
+
   const handleUpdateProfile = async (updates: Partial<Profile>) => {
     if (!profile) return;
     const headers = getAuthHeaders();
@@ -338,25 +379,46 @@ export default function Dashboard() {
       const activeId = Number(event['active']['id']);
       const overId = Number(event['over']['id']);
       
-      const oldIndex = links.findIndex(l => l.id === activeId);
-      const newIndex = links.findIndex(l => l.id === overId);
-      
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newLinks = arrayMove(links, oldIndex, newIndex) as LinkType[];
-        setLinks(newLinks);
+      const headers = getAuthHeaders();
+
+      if (activeTab === 'links') {
+        const oldIndex = links.findIndex(l => l.id === activeId);
+        const newIndex = links.findIndex(l => l.id === overId);
         
-        // Update positions in backend
-        const headers = getAuthHeaders();
-        const updates = newLinks.map((link, index) => ({
-          id: link.id,
-          position: index
-        }));
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newLinks = arrayMove(links, oldIndex, newIndex) as LinkType[];
+          setLinks(newLinks);
+          
+          const updates = newLinks.map((link, index) => ({
+            id: link.id,
+            position: index
+          }));
+          
+          await fetch("/api/links/reorder", {
+            method: "PUT",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ links: updates })
+          });
+        }
+      } else if (activeTab === 'feeds') {
+        const oldIndex = feeds.findIndex(f => f.id === activeId);
+        const newIndex = feeds.findIndex(f => f.id === overId);
         
-        await fetch("/api/links/reorder", {
-          method: "PUT",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ links: updates })
-        });
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const newFeeds = arrayMove(feeds, oldIndex, newIndex) as SocialFeed[];
+          setFeeds(newFeeds);
+          
+          const updates = newFeeds.map((feed, index) => ({
+            id: feed.id,
+            position: index
+          }));
+          
+          await fetch("/api/feeds/reorder", {
+            method: "PUT",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ feeds: updates })
+          });
+        }
       }
     }
   };
@@ -549,12 +611,53 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* Shareable Link Section */}
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Your Profile Link</span>
+            <div className="flex items-center gap-2 text-zinc-900 dark:text-white font-bold break-all">
+              <span className="opacity-40">{window.location.origin}/p/</span>
+              {profile.username}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleShare}
+              className="flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+            >
+              {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+            {profile.contact_first_name && (
+              <button 
+                onClick={() => downloadVCard(profile)}
+                className="flex items-center justify-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition-all"
+              >
+                <UserPlus size={16} />
+                Save Contact
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl w-full overflow-x-auto scrollbar-hide">
           <div className="flex min-w-max">
             <TabButton active={activeTab === 'links'} onClick={() => setActiveTab('links')}>
               <LinkIcon size={18} />
               Links
+            </TabButton>
+            <TabButton active={activeTab === 'feeds'} onClick={() => setActiveTab('feeds')}>
+              <Activity size={18} />
+              Feeds
+            </TabButton>
+            <TabButton active={activeTab === 'qrcode'} onClick={() => setActiveTab('qrcode')}>
+              <QrCode size={18} />
+              QR Code
+            </TabButton>
+            <TabButton active={activeTab === 'contact'} onClick={() => setActiveTab('contact')}>
+              <Users size={18} />
+              Contact
             </TabButton>
             <TabButton active={activeTab === 'appearance'} onClick={() => setActiveTab('appearance')}>
               <Palette size={18} />
@@ -617,6 +720,194 @@ export default function Dashboard() {
                   </div>
                 </SortableContext>
               </DndContext>
+            </div>
+          )}
+
+          {activeTab === 'feeds' && (
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={handleAddFeed}
+                className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all"
+              >
+                <Plus size={20} />
+                Add New Social Feed
+              </button>
+              
+              <DndContext 
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext 
+                  items={feeds.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex flex-col gap-4">
+                    {feeds.map((feed) => (
+                      <SortableFeed 
+                        key={feed.id}
+                        feed={feed}
+                        onUpdate={handleUpdateFeed}
+                        onDelete={handleDeleteFeed}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
+
+          {activeTab === 'qrcode' && (
+            <div className="flex flex-col items-center gap-8 bg-white dark:bg-zinc-900 p-12 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+              <div className="flex flex-col items-center gap-4 text-center max-w-md">
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Your Profile QR Code</h2>
+                <p className="text-zinc-500 dark:text-zinc-400">Scan this code to instantly visit your profile. You can download it and use it on business cards, posters, or social media.</p>
+              </div>
+
+              <div className="p-8 bg-white rounded-3xl shadow-xl border border-zinc-100">
+                <QRCodeSVG 
+                  id="profile-qrcode"
+                  value={`${window.location.origin}/p/${profile.username}`}
+                  size={256}
+                  level="H"
+                  includeMargin={true}
+                  imageSettings={{
+                    src: profile.avatar_url || "",
+                    x: undefined,
+                    y: undefined,
+                    height: 48,
+                    width: 48,
+                    excavate: true,
+                  }}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+                <button 
+                  onClick={() => {
+                    const svg = document.getElementById("profile-qrcode");
+                    if (!svg) return;
+                    const svgData = new XMLSerializer().serializeToString(svg);
+                    const canvas = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+                    const img = new Image();
+                    img.onload = () => {
+                      canvas.width = img.width;
+                      canvas.height = img.height;
+                      ctx?.drawImage(img, 0, 0);
+                      const pngFile = canvas.toDataURL("image/png");
+                      const downloadLink = document.createElement("a");
+                      downloadLink.download = `${profile.username}-qrcode.png`;
+                      downloadLink.href = pngFile;
+                      downloadLink.click();
+                    };
+                    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+                  }}
+                  className="flex-1 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all"
+                >
+                  <Download size={20} />
+                  Download PNG
+                </button>
+                <button 
+                  onClick={handleShare}
+                  className="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                >
+                  <Copy size={20} />
+                  Copy Link
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'contact' && (
+            <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Contact Information</h2>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Add your contact details to allow visitors to save you to their phone.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">First Name</label>
+                    <input 
+                      type="text" 
+                      value={profile.contact_first_name || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_first_name: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Last Name</label>
+                    <input 
+                      type="text" 
+                      value={profile.contact_last_name || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_last_name: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="Doe"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Email</label>
+                    <input 
+                      type="email" 
+                      value={profile.contact_email || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_email: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Phone</label>
+                    <input 
+                      type="tel" 
+                      value={profile.contact_phone || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_phone: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="+234..."
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Organization</label>
+                    <input 
+                      type="text" 
+                      value={profile.contact_organization || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_organization: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="Company Name"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Job Title</label>
+                    <input 
+                      type="text" 
+                      value={profile.contact_job_title || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_job_title: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="CEO"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Website</label>
+                    <input 
+                      type="url" 
+                      value={profile.contact_website || ""} 
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, contact_website: e.target.value } : null)}
+                      className="bg-zinc-50 dark:bg-zinc-800 border-none rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:ring-2 focus:ring-zinc-900 dark:focus:ring-white transition-all"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => handleUpdateProfile({})}
+                  disabled={isSaving}
+                  className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save Contact Info"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1191,7 +1482,7 @@ export default function Dashboard() {
                           <td className="py-4">
                             <div className="flex flex-col">
                               <span className="font-bold text-zinc-900 dark:text-white">{link.title}</span>
-                              <a href={link.url} target="_blank" className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white truncate max-w-[200px]">{link.url}</a>
+                              <a href={link.url || null} target="_blank" className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white truncate max-w-[200px]">{link.url}</a>
                             </div>
                           </td>
                           <td className="py-4">
@@ -1230,7 +1521,7 @@ export default function Dashboard() {
           <div className="w-[320px] h-[640px] bg-zinc-900 dark:bg-zinc-950 rounded-[3rem] p-3 border-[8px] border-zinc-800 dark:border-zinc-900 shadow-2xl mx-auto overflow-hidden relative">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-zinc-800 dark:bg-zinc-900 rounded-b-2xl z-10" />
             <div className="w-full h-full bg-white rounded-[2rem] overflow-y-auto scrollbar-hide">
-              <ProfilePreview profile={profile} links={links} />
+              <ProfilePreview profile={profile} links={links} feeds={feeds} />
             </div>
           </div>
         </div>
@@ -1251,6 +1542,99 @@ export default function Dashboard() {
   );
 }
 
+function SortableFeed({ 
+  feed, 
+  onUpdate, 
+  onDelete 
+}: { 
+  feed: SocialFeed, 
+  onUpdate: (id: number, updates: Partial<SocialFeed>) => Promise<void>,
+  onDelete: (id: number) => Promise<void>,
+  key?: any
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: feed.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col gap-4 relative group transition-colors"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4 flex-1">
+          <div 
+            {...attributes} 
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors shrink-0"
+          >
+            <GripVertical size={20} />
+          </div>
+          
+          <div className="w-12 h-12 bg-zinc-50 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400 dark:text-zinc-500 shrink-0 border border-zinc-100 dark:border-zinc-700">
+            {feed.type === 'instagram' && <IconRenderer name="Instagram" size={24} />}
+            {feed.type === 'twitter' && <IconRenderer name="Twitter" size={24} />}
+            {feed.type === 'tiktok' && <IconRenderer name="Music2" size={24} />}
+            {feed.type === 'youtube' && <IconRenderer name="Youtube" size={24} />}
+          </div>
+          
+          <div className="flex-1 flex flex-col gap-3">
+            <select 
+              value={feed.type}
+              onChange={(e) => onUpdate(feed.id, { type: e.target.value as any })}
+              className="text-lg font-bold bg-transparent border-none p-0 focus:ring-0 w-full text-zinc-900 dark:text-white"
+            >
+              <option value="instagram">Instagram Post/Profile</option>
+              <option value="twitter">Twitter Post/Profile</option>
+              <option value="tiktok">TikTok Video</option>
+              <option value="youtube">YouTube Video</option>
+            </select>
+            <input 
+              type="text" 
+              value={feed.url}
+              onChange={(e) => onUpdate(feed.id, { url: e.target.value })}
+              className="text-sm text-zinc-500 dark:text-zinc-400 bg-transparent border-none p-0 focus:ring-0 w-full"
+              placeholder="Paste URL here (e.g., https://instagram.com/p/xxx)"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => onDelete(feed.id)}
+            className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+          >
+            <Trash2 size={20} />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input 
+            type="checkbox" 
+            checked={feed.active === 1}
+            onChange={(e) => onUpdate(feed.id, { active: e.target.checked ? 1 : 0 })}
+            className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white focus:ring-zinc-900 dark:focus:ring-white bg-transparent"
+          />
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Active</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function TabButton({ children, active, onClick }: { children: ReactNode, active: boolean, onClick: () => void }) {
   return (
     <button 
@@ -1267,7 +1651,7 @@ function TabButton({ children, active, onClick }: { children: ReactNode, active:
   );
 }
 
-function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[] }) {
+function ProfilePreview({ profile, links, feeds }: { profile: Profile, links: LinkType[], feeds: SocialFeed[] }) {
   const theme = THEMES.find(t => t.id === profile.theme) || THEMES[0];
   const font = FONTS.find(f => f.id === profile.font_family) || FONTS[0];
   
@@ -1296,6 +1680,17 @@ function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[
           <h2 className={cn("text-xl font-bold", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>@{profile.username}</h2>
           <p className={cn("text-sm opacity-80", theme.text, profile.bg_image_url && "text-white drop-shadow-md")}>{profile.bio}</p>
         </div>
+
+        {profile.contact_first_name && (
+          <div className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs border shadow-sm",
+            theme.button,
+            theme.buttonText
+          )}>
+            <UserPlus size={14} />
+            Save Contact
+          </div>
+        )}
       </div>
 
       <div className="w-full flex flex-col gap-3 relative z-10">
@@ -1319,6 +1714,22 @@ function ProfilePreview({ profile, links }: { profile: Profile, links: LinkType[
           </div>
         ))}
       </div>
+
+      {feeds.filter(f => f.active).length > 0 && (
+        <div className="w-full flex flex-col gap-4 relative z-10">
+          {feeds.filter(f => f.active).map(feed => (
+            <div key={feed.id} className="w-full bg-black/5 dark:bg-white/5 rounded-2xl p-4 flex items-center justify-center gap-2 border border-black/5 dark:border-white/5">
+              <div className="text-zinc-400">
+                {feed.type === 'instagram' && <IconRenderer name="Instagram" size={16} />}
+                {feed.type === 'twitter' && <IconRenderer name="Twitter" size={16} />}
+                {feed.type === 'tiktok' && <IconRenderer name="Music2" size={16} />}
+                {feed.type === 'youtube' && <IconRenderer name="Youtube" size={16} />}
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Social Feed</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-auto pt-8 relative z-10">
         <div className={cn("text-[10px] font-bold uppercase tracking-[0.2em] opacity-50", theme.text, profile.bg_image_url && "text-white")}>

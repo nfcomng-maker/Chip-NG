@@ -3,10 +3,13 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import ProfileView from "./pages/ProfileView";
 import Pricing from "./pages/Pricing";
+import Contact from "./pages/Contact";
+import FAQ from "./pages/FAQ";
 import SignUp from "./pages/SignUp";
 import Login from "./pages/Login";
 import VerifyEmail from "./pages/VerifyEmail";
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import AIChatBot from "./components/AIChatBot";
 import { ThemeProvider } from "./context/ThemeContext";
 
@@ -31,10 +34,13 @@ export default function App() {
                       <Route path="/" element={<Landing />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/pricing" element={<Pricing />} />
+                      <Route path="/contact" element={<Contact />} />
+                      <Route path="/faq" element={<FAQ />} />
                       <Route path="/signup" element={<SignUp />} />
                       <Route path="/login" element={<Login />} />
                     </Routes>
                   </main>
+                  <Footer />
                   <AIChatBot />
                 </>
               }
