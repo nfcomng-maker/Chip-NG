@@ -1184,10 +1184,10 @@ export default function Dashboard() {
 
           {activeTab === 'developer' && profile.role === 'admin' && (
             <div className="flex flex-col gap-8">
-              <section className="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-6 transition-colors">
-                <div className="flex items-center justify-between">
+              <section className="bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-6 transition-colors">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <h2 className="text-xl font-bold text-zinc-900 dark:text-white">API Keys</h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input 
                       type="text" 
                       placeholder="Key Name (e.g. Mobile App)"
@@ -1227,14 +1227,14 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-4">
                   {apiKeys.length > 0 ? (
                     apiKeys.map((key) => (
-                      <div key={key.id} className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
-                        <div className="flex flex-col gap-1">
-                          <div className="font-bold text-zinc-900 dark:text-white">{key.name}</div>
-                          <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">{key.partial_key} • Created on {new Date(key.created_at).toLocaleDateString()}</div>
+                      <div key={key.id} className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700 gap-4">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="font-bold text-zinc-900 dark:text-white truncate">{key.name}</div>
+                          <div className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">{key.partial_key} • {new Date(key.created_at).toLocaleDateString()}</div>
                         </div>
                         <button 
                           onClick={() => handleDeleteKey(key.id)}
-                          className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                          className="p-2 text-zinc-400 hover:text-red-500 transition-colors shrink-0"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -1278,7 +1278,7 @@ export default function Dashboard() {
           {activeTab === 'admin' && profile.role === 'admin' && (
             <div className="flex flex-col gap-8">
               {/* Admin Stats */}
-              <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 transition-colors">
                   <div className="flex items-center gap-2 text-zinc-400 dark:text-zinc-500 mb-2">
                     <Users size={16} />
@@ -1325,7 +1325,7 @@ export default function Dashboard() {
                 {isCreatingUser && (
                   <div className="bg-zinc-50 dark:bg-zinc-800 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col gap-4 transition-colors">
                     <h3 className="font-bold text-sm text-zinc-900 dark:text-white">Create New User</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <input 
                         type="text" 
                         placeholder="Username"
@@ -1384,7 +1384,8 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-zinc-100 dark:border-zinc-800">
@@ -1461,12 +1462,79 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden flex flex-col gap-4">
+                  {adminUsers.map((user) => (
+                    <div key={user.id} className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-zinc-900 dark:text-white">{user.display_name || user.username}</span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">{user.email}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => window.open(`/p/${user.username}`, '_blank')}
+                            className="p-2 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400"
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="p-2 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 text-red-500"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Plan</span>
+                          <select 
+                            value={user.plan}
+                            onChange={(e) => handleUpdateUserPlan(user.id, e.target.value)}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold capitalize outline-none text-zinc-900 dark:text-white"
+                          >
+                            <option value="free">Free</option>
+                            <option value="pro">Pro</option>
+                            <option value="business">Business</option>
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Role</span>
+                          <select 
+                            value={user.role}
+                            onChange={(e) => handleUpdateUserRole(user.id, e.target.value)}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-sm font-bold capitalize outline-none text-zinc-900 dark:text-white"
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => handleToggleFeatured(user.id)}
+                        className={cn(
+                          "w-full py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border",
+                          user.is_featured === 1 
+                            ? "bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900/30" 
+                            : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700"
+                        )}
+                      >
+                        {user.is_featured === 1 ? "Featured User" : "Promote to Featured"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </section>
 
               {/* Content Moderation */}
               <section className="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-6 transition-colors">
                 <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Content Moderation</h2>
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-zinc-100 dark:border-zinc-800">
@@ -1507,6 +1575,37 @@ export default function Dashboard() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden flex flex-col gap-4">
+                  {adminLinks.map((link) => (
+                    <div key={link.id} className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-zinc-900 dark:text-white">{link.title}</span>
+                          <a href={link.url || null} target="_blank" className="text-xs text-zinc-400 dark:text-zinc-500 truncate max-w-[200px]">{link.url}</a>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteAdminLink(link.id)}
+                          className="p-2 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center justify-between pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Owner</span>
+                          <span className="text-sm font-medium text-zinc-900 dark:text-white">@{link.username}</span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Clicks</span>
+                          <span className="text-sm font-bold text-zinc-900 dark:text-white">{link.clicks}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
             </div>
