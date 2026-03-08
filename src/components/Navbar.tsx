@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Link2, LayoutDashboard, CreditCard, Home, LogOut, User, Menu, X, Mail, HelpCircle } from "lucide-react";
+import { Link2, LayoutDashboard, CreditCard, Home, LogOut, User, Menu, X, Mail, HelpCircle, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { motion, AnimatePresence } from "motion/react";
@@ -51,6 +51,10 @@ export default function Navbar() {
           <Link to="/faq" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1.5 text-sm font-medium transition-colors">
             <HelpCircle size={18} />
             FAQ
+          </Link>
+          <Link to="/blog" className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1.5 text-sm font-medium transition-colors">
+            <FileText size={18} />
+            Blog
           </Link>
           
           {username ? (
@@ -124,6 +128,10 @@ export default function Navbar() {
               <Link to="/faq" onClick={closeMenu} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-900 dark:text-white font-bold transition-colors">
                 <HelpCircle size={20} />
                 FAQ
+              </Link>
+              <Link to="/blog" onClick={closeMenu} className="flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-900 dark:text-white font-bold transition-colors">
+                <FileText size={20} />
+                Blog
               </Link>
               
               {username ? (

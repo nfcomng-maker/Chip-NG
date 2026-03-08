@@ -133,6 +133,24 @@ db.exec(`
     created_at TEXT,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS blogs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    slug TEXT UNIQUE,
+    content TEXT,
+    excerpt TEXT,
+    author_id INTEGER,
+    published_at TEXT,
+    is_published INTEGER DEFAULT 0,
+    image_url TEXT,
+    meta_title TEXT,
+    meta_description TEXT,
+    meta_keywords TEXT,
+    category TEXT,
+    scheduled_at TEXT,
+    FOREIGN KEY(author_id) REFERENCES users(id)
+  );
 `);
 
 // Migrations
@@ -151,6 +169,8 @@ try { db.exec("ALTER TABLE profiles ADD COLUMN contact_phone TEXT"); } catch (e)
 try { db.exec("ALTER TABLE profiles ADD COLUMN contact_organization TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN contact_job_title TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE profiles ADD COLUMN contact_website TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE blogs ADD COLUMN category TEXT"); } catch (e) {}
+try { db.exec("ALTER TABLE blogs ADD COLUMN scheduled_at TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN icon TEXT"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN position INTEGER DEFAULT 0"); } catch (e) {}
 try { db.exec("ALTER TABLE links ADD COLUMN color TEXT"); } catch (e) {}
@@ -606,6 +626,129 @@ async function startServer() {
     db.prepare("DELETE FROM payments WHERE user_id = ?").run(id);
     db.prepare("DELETE FROM users WHERE id = ?").run(id);
     res.json({ success: true });
+  });
+
+  // Blog Endpoints
+  app.get("/api/blogs", (req, res) => {
+    const now = new Date().toISOString();
+    const blogs = db.prepare(`
+      SELECT b.*, u.username as author_name 
+      FROM blogs b 
+      JOIN users u ON b.author_id = u.id 
+      WHERE b.is_published = 1 AND (b.scheduled_at IS NULL OR b.scheduled_at <= ?)
+      ORDER BY b.published_at DESC
+    `).all(now);
+    res.json(blogs);
+  });
+
+  app.get("/api/blogs/:slug", (req, res) => {
+    const { slug } = req.params;
+    const now = new Date().toISOString();
+    const blog = db.prepare(`
+      SELECT b.*, u.username as author_name 
+      FROM blogs b 
+      JOIN users u ON b.author_id = u.id 
+      WHERE b.slug = ? AND b.is_published = 1 AND (b.scheduled_at IS NULL OR b.scheduled_at <= ?)
+    `).get(slug, now);
+    
+    if (!blog) return res.status(404).json({ error: "Blog post not found" });
+    res.json(blog);
+  });
+
+  // Admin Blog Endpoints
+  app.get("/api/admin/blogs", (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    const blogs = db.prepare(`
+      SELECT b.*, u.username as author_name 
+      FROM blogs b 
+      JOIN users u ON b.author_id = u.id 
+      ORDER BY b.id DESC
+    `).all();
+    res.json(blogs);
+  });
+
+  app.get("/api/admin/blogs/:id", (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    const { id } = req.params;
+    const blog = db.prepare(`
+      SELECT b.*, u.username as author_name 
+      FROM blogs b 
+      JOIN users u ON b.author_id = u.id 
+      WHERE b.id = ?
+    `).get(id);
+    
+    if (!blog) return res.status(404).json({ error: "Blog post not found" });
+    res.json(blog);
+  });
+
+  app.post("/api/admin/blogs", (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    const { title, slug, content, excerpt, is_published, image_url, meta_title, meta_description, meta_keywords, category, scheduled_at } = req.body;
+    const publishedAt = is_published ? new Date().toISOString() : null;
+
+    try {
+      const result = db.prepare(`
+        INSERT INTO blogs (title, slug, content, excerpt, author_id, published_at, is_published, image_url, meta_title, meta_description, meta_keywords, category, scheduled_at) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(title, slug, content, excerpt, user.id, publishedAt, is_published ? 1 : 0, image_url, meta_title, meta_description, meta_keywords, category, scheduled_at);
+      res.json({ success: true, id: result.lastInsertRowid });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.put("/api/admin/blogs/:id", (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    const { id } = req.params;
+    const { title, slug, content, excerpt, is_published, image_url, meta_title, meta_description, meta_keywords, category, scheduled_at } = req.body;
+    
+    const existingBlog = db.prepare("SELECT * FROM blogs WHERE id = ?").get(id) as any;
+    if (!existingBlog) return res.status(404).json({ error: "Blog not found" });
+
+    let publishedAt = existingBlog.published_at;
+    if (is_published && !existingBlog.is_published) {
+      publishedAt = new Date().toISOString();
+    }
+
+    try {
+      db.prepare(`
+        UPDATE blogs 
+        SET title = ?, slug = ?, content = ?, excerpt = ?, published_at = ?, is_published = ?, image_url = ?, meta_title = ?, meta_description = ?, meta_keywords = ?, category = ?, scheduled_at = ? 
+        WHERE id = ?
+      `).run(title, slug, content, excerpt, publishedAt, is_published ? 1 : 0, image_url, meta_title, meta_description, meta_keywords, category, scheduled_at, id);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/admin/blogs/:id", (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    const { id } = req.params;
+    db.prepare("DELETE FROM blogs WHERE id = ?").run(id);
+    res.json({ success: true });
+  });
+
+  app.post("/api/admin/blogs/upload", upload.single("image"), (req, res) => {
+    const user = getUser(req);
+    if (!user || user.role !== 'admin') return res.status(403).json({ error: "Admins only" });
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ success: true, imageUrl });
   });
 
   app.post("/api/payments/verify", async (req, res) => {

@@ -27,7 +27,9 @@ import {
   UserPlus,
   Activity,
   QrCode,
-  Download
+  Download,
+  FileText,
+  PenTool
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { 
@@ -217,7 +219,23 @@ export default function Dashboard() {
   const [adminStats, setAdminStats] = useState<{ totalUsers: number, proUsers: number, totalClicks: number, totalRevenue: number } | null>(null);
   const [adminUsers, setAdminUsers] = useState<Array<{ id: number, username: string, email: string, plan: string, role: string, is_verified: number, is_featured: number, display_name: string }>>([]);
   const [adminLinks, setAdminLinks] = useState<Array<{ id: number, title: string, url: string, username: string, email: string, clicks: number, active: number }>>([]);
-  const [activeTab, setActiveTab] = useState<'links' | 'feeds' | 'qrcode' | 'contact' | 'appearance' | 'analytics' | 'subscription' | 'developer' | 'admin'>('links');
+  const [adminBlogs, setAdminBlogs] = useState<Array<{ id: number, title: string, slug: string, is_published: number, author_name: string, published_at: string, category?: string, scheduled_at?: string }>>([]);
+  const [isCreatingBlog, setIsCreatingBlog] = useState(false);
+  const [editingBlog, setEditingBlog] = useState<any>(null);
+  const [blogForm, setBlogForm] = useState({
+    title: '',
+    slug: '',
+    content: '',
+    excerpt: '',
+    is_published: false,
+    image_url: '',
+    meta_title: '',
+    meta_description: '',
+    meta_keywords: '',
+    category: '',
+    scheduled_at: ''
+  });
+  const [activeTab, setActiveTab] = useState<'links' | 'feeds' | 'qrcode' | 'contact' | 'appearance' | 'analytics' | 'subscription' | 'developer' | 'admin' | 'blog'>('links');
   const [newKeyName, setNewKeyName] = useState("");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -284,14 +302,16 @@ export default function Dashboard() {
     }
 
     if (profileData.role === 'admin') {
-      const [statsRes, adminUsersRes, adminLinksRes] = await Promise.all([
+      const [statsRes, adminUsersRes, adminLinksRes, adminBlogsRes] = await Promise.all([
         fetch("/api/admin/stats", { headers }),
         fetch("/api/admin/users", { headers }),
-        fetch("/api/admin/content", { headers })
+        fetch("/api/admin/content", { headers }),
+        fetch("/api/admin/blogs", { headers })
       ]);
       if (statsRes.ok) setAdminStats(await statsRes.json());
       if (adminUsersRes.ok) setAdminUsers(await adminUsersRes.json());
       if (adminLinksRes.ok) setAdminLinks(await adminLinksRes.json());
+      if (adminBlogsRes.ok) setAdminBlogs(await adminBlogsRes.json());
     }
   };
 
@@ -584,6 +604,64 @@ export default function Dashboard() {
     if (res.ok) fetchData();
   };
 
+  const handleSaveBlog = async () => {
+    const headers = getAuthHeaders();
+    const url = editingBlog ? `/api/admin/blogs/${editingBlog.id}` : '/api/admin/blogs';
+    const method = editingBlog ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(blogForm)
+    });
+
+    if (res.ok) {
+      setIsCreatingBlog(false);
+      setEditingBlog(null);
+      setBlogForm({
+        title: '',
+        slug: '',
+        content: '',
+        excerpt: '',
+        is_published: false,
+        image_url: '',
+        meta_title: '',
+        meta_description: '',
+        meta_keywords: '',
+        category: '',
+        scheduled_at: ''
+      });
+      fetchData();
+    }
+  };
+
+  const handleDeleteBlog = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this blog post?')) return;
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/admin/blogs/${id}`, { method: 'DELETE', headers });
+    if (res.ok) fetchData();
+  };
+
+  const handleBlogImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const headers = getAuthHeaders();
+    const res = await fetch('/api/admin/blogs/upload', {
+      method: 'POST',
+      headers: { 'x-user-id': headers['x-user-id'] },
+      body: formData
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setBlogForm(prev => ({ ...prev, image_url: data.imageUrl }));
+    }
+  };
+
   if (!profile) return <div className="flex items-center justify-center h-64">Loading...</div>;
 
   return (
@@ -681,6 +759,12 @@ export default function Dashboard() {
               <TabButton active={activeTab === 'admin'} onClick={() => setActiveTab('admin')}>
                 <Shield size={18} />
                 Admin
+              </TabButton>
+            )}
+            {profile.role === 'admin' && (
+              <TabButton active={activeTab === 'blog'} onClick={() => setActiveTab('blog')}>
+                <FileText size={18} />
+                Blog
               </TabButton>
             )}
           </div>
@@ -1606,6 +1690,282 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'blog' && profile.role === 'admin' && (
+            <div className="flex flex-col gap-8">
+              <section className="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 flex flex-col gap-6 transition-colors">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Blog Management</h2>
+                  <button 
+                    onClick={() => {
+                      setIsCreatingBlog(true);
+                      setEditingBlog(null);
+                      setBlogForm({
+                        title: '',
+                        slug: '',
+                        content: '',
+                        excerpt: '',
+                        is_published: false,
+                        image_url: '',
+                        meta_title: '',
+                        meta_description: '',
+                        meta_keywords: '',
+                        category: '',
+                        scheduled_at: ''
+                      });
+                    }}
+                    className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2 rounded-xl text-sm font-bold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all flex items-center gap-2"
+                  >
+                    <Plus size={18} />
+                    New Post
+                  </button>
+                </div>
+
+                {isCreatingBlog && (
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col gap-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-zinc-900 dark:text-white">{editingBlog ? 'Edit Post' : 'Create New Post'}</h3>
+                      <button onClick={() => setIsCreatingBlog(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Title</label>
+                          <input 
+                            type="text" 
+                            value={blogForm.title}
+                            onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value, slug: e.target.value.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '') })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                            placeholder="Post Title"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Slug</label>
+                          <input 
+                            type="text" 
+                            value={blogForm.slug}
+                            onChange={(e) => setBlogForm({ ...blogForm, slug: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                            placeholder="post-slug"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Excerpt</label>
+                          <textarea 
+                            value={blogForm.excerpt}
+                            onChange={(e) => setBlogForm({ ...blogForm, excerpt: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white h-24 resize-none"
+                            placeholder="Brief summary of the post..."
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Featured Image</label>
+                          <div className="flex items-center gap-4">
+                            <div className="w-20 h-20 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 overflow-hidden flex-shrink-0">
+                              {blogForm.image_url ? (
+                                <img src={blogForm.image_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-zinc-300">
+                                  <ImageIcon size={24} />
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 flex flex-col gap-2">
+                              <input 
+                                type="text" 
+                                value={blogForm.image_url}
+                                onChange={(e) => setBlogForm({ ...blogForm, image_url: e.target.value })}
+                                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                                placeholder="Image URL"
+                              />
+                              <label className="cursor-pointer bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-xs font-bold text-center hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+                                Upload Image
+                                <input type="file" className="hidden" accept="image/*" onChange={handleBlogImageUpload} />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">SEO Title</label>
+                          <input 
+                            type="text" 
+                            value={blogForm.meta_title}
+                            onChange={(e) => setBlogForm({ ...blogForm, meta_title: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                            placeholder="SEO Title"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">SEO Description</label>
+                          <textarea 
+                            value={blogForm.meta_description}
+                            onChange={(e) => setBlogForm({ ...blogForm, meta_description: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white h-20 resize-none"
+                            placeholder="SEO Description"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">SEO Keywords</label>
+                          <input 
+                            type="text" 
+                            value={blogForm.meta_keywords}
+                            onChange={(e) => setBlogForm({ ...blogForm, meta_keywords: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                            placeholder="keyword1, keyword2..."
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Category</label>
+                          <input 
+                            type="text" 
+                            value={blogForm.category}
+                            onChange={(e) => setBlogForm({ ...blogForm, category: e.target.value })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                            placeholder="e.g. Technology, Lifestyle"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Schedule Publication</label>
+                          <input 
+                            type="datetime-local" 
+                            value={blogForm.scheduled_at ? blogForm.scheduled_at.slice(0, 16) : ''}
+                            onChange={(e) => setBlogForm({ ...blogForm, scheduled_at: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2 text-sm outline-none text-zinc-900 dark:text-white"
+                          />
+                        </div>
+                        <div className="flex items-center gap-3 mt-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={blogForm.is_published}
+                              onChange={(e) => setBlogForm({ ...blogForm, is_published: e.target.checked })}
+                              className="w-4 h-4 rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white focus:ring-zinc-900 dark:focus:ring-white bg-transparent"
+                            />
+                            <span className="text-sm font-bold text-zinc-900 dark:text-white">Publish Immediately</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">Content (Markdown)</label>
+                      <textarea 
+                        value={blogForm.content}
+                        onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
+                        className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-4 text-sm outline-none text-zinc-900 dark:text-white h-96 font-mono"
+                        placeholder="# Your Blog Post Content..."
+                      />
+                    </div>
+
+                    <button 
+                      onClick={handleSaveBlog}
+                      className="w-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-4 rounded-2xl font-bold hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all"
+                    >
+                      {editingBlog ? 'Update Post' : 'Publish Post'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-4">
+                  {adminBlogs.length > 0 ? (
+                    adminBlogs.map((blog) => (
+                      <div key={blog.id} className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-4">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-zinc-900 dark:text-white truncate">{blog.title}</span>
+                            {blog.is_published === 1 ? (
+                              <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase rounded-full">Published</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[10px] font-bold uppercase rounded-full">Draft</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                            /{blog.slug} • {blog.category && <span className="font-bold text-zinc-700 dark:text-zinc-300">{blog.category} • </span>}By {blog.author_name} • {blog.published_at ? new Date(blog.published_at).toLocaleDateString() : 'Not published'}
+                            {(blog as any).scheduled_at && (
+                              <span className="ml-2 text-amber-600 dark:text-amber-400 font-bold">
+                                (Scheduled: {new Date((blog as any).scheduled_at).toLocaleString()})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button 
+                            onClick={() => {
+                              setEditingBlog(blog);
+                              setBlogForm({
+                                title: blog.title,
+                                slug: blog.slug,
+                                content: (blog as any).content || '',
+                                excerpt: (blog as any).excerpt || '',
+                                is_published: blog.is_published === 1,
+                                image_url: (blog as any).image_url || '',
+                                meta_title: (blog as any).meta_title || '',
+                                meta_description: (blog as any).meta_description || '',
+                                meta_keywords: (blog as any).meta_keywords || '',
+                                category: (blog as any).category || '',
+                                scheduled_at: (blog as any).scheduled_at || ''
+                              });
+                              // We need to fetch the full blog content if it's not in the list
+                              fetch(`/api/admin/blogs/${blog.id}`, { headers: getAuthHeaders() })
+                                .then(res => res.json())
+                                .then(data => {
+                                  setBlogForm(prev => ({
+                                    ...prev,
+                                    content: data.content,
+                                    excerpt: data.excerpt,
+                                    image_url: data.image_url,
+                                    meta_title: data.meta_title,
+                                    meta_description: data.meta_description,
+                                    meta_keywords: data.meta_keywords,
+                                    category: data.category,
+                                    scheduled_at: data.scheduled_at
+                                  }));
+                                });
+                              setIsCreatingBlog(true);
+                            }}
+                            className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                            title="Edit Post"
+                          >
+                            <PenTool size={18} />
+                          </button>
+                          <button 
+                            onClick={() => window.open(`/blog/${blog.slug}`, '_blank')}
+                            className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                            title="View Post"
+                          >
+                            <ExternalLink size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteBlog(blog.id)}
+                            className="p-2 text-zinc-400 hover:text-red-500 transition-colors"
+                            title="Delete Post"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-12 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-700">
+                      <div className="text-zinc-400 dark:text-zinc-500 mb-2">No blog posts found</div>
+                      <button 
+                        onClick={() => setIsCreatingBlog(true)}
+                        className="text-xs font-bold text-zinc-900 dark:text-white hover:underline"
+                      >
+                        Create your first post
+                      </button>
+                    </div>
+                  )}
                 </div>
               </section>
             </div>

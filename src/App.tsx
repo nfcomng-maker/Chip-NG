@@ -5,7 +5,10 @@ import ProfileView from "./pages/ProfileView";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
 import FAQ from "./pages/FAQ";
+import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 import SignUp from "./pages/SignUp";
+import { HelmetProvider } from 'react-helmet-async';
 import Login from "./pages/Login";
 import VerifyEmail from "./pages/VerifyEmail";
 import Navbar from "./components/Navbar";
@@ -15,39 +18,43 @@ import { ThemeProvider } from "./context/ThemeContext";
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
-          <Routes>
-            {/* Public Profile View (No Navbar) */}
-            <Route path="/p/:username" element={<ProfileView />} />
-            <Route path="/verify/:token" element={<VerifyEmail />} />
-            
-            {/* Main App Routes */}
-            <Route
-              path="*"
-              element={
-                <>
-                  <Navbar />
-                  <main className="container mx-auto px-4 py-8">
-                    <Routes>
-                      <Route path="/" element={<Landing />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/pricing" element={<Pricing />} />
-                      <Route path="/contact" element={<Contact />} />
-                      <Route path="/faq" element={<FAQ />} />
-                      <Route path="/signup" element={<SignUp />} />
-                      <Route path="/login" element={<Login />} />
-                    </Routes>
-                  </main>
-                  <Footer />
-                  <AIChatBot />
-                </>
-              }
-            />
-          </Routes>
-        </div>
-      </Router>
-    </ThemeProvider>
+    <HelmetProvider>
+      <ThemeProvider>
+        <Router>
+          <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
+            <Routes>
+              {/* Public Profile View (No Navbar) */}
+              <Route path="/p/:username" element={<ProfileView />} />
+              <Route path="/verify/:token" element={<VerifyEmail />} />
+              
+              {/* Main App Routes */}
+              <Route
+                path="*"
+                element={
+                  <>
+                    <Navbar />
+                    <main className="container mx-auto px-4 py-8">
+                      <Routes>
+                        <Route path="/" element={<Landing />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/pricing" element={<Pricing />} />
+                        <Route path="/contact" element={<Contact />} />
+                        <Route path="/faq" element={<FAQ />} />
+                        <Route path="/blog" element={<Blog />} />
+                        <Route path="/blog/:slug" element={<BlogPost />} />
+                        <Route path="/signup" element={<SignUp />} />
+                        <Route path="/login" element={<Login />} />
+                      </Routes>
+                    </main>
+                    <Footer />
+                    <AIChatBot />
+                  </>
+                }
+              />
+            </Routes>
+          </div>
+        </Router>
+      </ThemeProvider>
+    </HelmetProvider>
   );
 }
